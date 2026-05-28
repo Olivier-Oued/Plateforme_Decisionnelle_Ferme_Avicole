@@ -1,0 +1,92 @@
+/* ══ CHARTE MALI ÉLEVAGE ══ */
+
+.stApp {
+    background-color: #F9FBF9;
+}
+
+[data-testid="stSidebar"] {
+    background-color: #1B5E20 !important;
+}
+
+[data-testid="stSidebar"] * {
+    color: white !important;
+}
+
+h1 {
+    color: #1B5E20 !important;
+}
+
+h2 {
+    color: #2E7D32 !important;
+}
+
+h3 {
+    color: #388E3C !important;
+}
+
+[data-testid="stMetric"] {
+    background-color: #FFFFFF;
+    border: 1px solid #E8F5E9;
+    border-left: 4px solid #4CAF50;
+    border-radius: 8px;
+    padding: 16px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+[data-testid="stMetricLabel"] {
+    color: #555 !important;
+    font-size: 13px !important;
+}
+
+[data-testid="stMetricValue"] {
+    color: #1B5E20 !important;
+    font-weight: 700 !important;
+}
+
+.alert-danger {
+    background-color: #FFEBEE;
+    border-left: 4px solid #B71C1C;
+    padding: 12px 16px;
+    border-radius: 4px;
+    color: #B71C1C;
+    margin: 8px 0;
+}
+
+.alert-warning {
+    background-color: #FFF8E1;
+    border-left: 4px solid #F57F17;
+    padding: 12px 16px;
+    border-radius: 4px;
+    color: #E65100;
+    margin: 8px 0;
+}
+
+.alert-success {
+    background-color: #E8F5E9;
+    border-left: 4px solid #1B5E20;
+    padding: 12px 16px;
+    border-radius: 4px;
+    color: #1B5E20;
+    margin: 8px 0;
+}
+
+.stButton>button {
+    background-color: #1B5E20 !important;
+    color: white !important;
+    border-radius: 6px !important;
+    border: none !important;
+    font-weight: 600 !important;
+}
+
+.stButton>button:hover {
+    background-color: #4CAF50 !important;
+}
+
+.dataframe th {
+    background-color: #1B5E20 !important;
+    color: white !important;
+}
+
+hr {
+    border-color: #E8F5E9 !important;
+}

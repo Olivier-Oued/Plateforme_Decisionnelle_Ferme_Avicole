@@ -1,0 +1,129 @@
+# ══════════════════════════════════════
+# CREDENTIALS ET DONNÉES SENSIBLES
+# ══════════════════════════════════════
+
+# Fichier de connexion PostgreSQL (contient les credentials)
+dashboard_mali_elevage/config.py
+
+# Variables d'environnement
+.env
+.env.local
+.env.production
+*.env
+
+# Fichiers de secrets
+secrets.toml
+.streamlit/secrets.toml
+
+
+# ══════════════════════════════════════
+# PYTHON
+# ══════════════════════════════════════
+
+# Cache Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+
+# ══════════════════════════════════════
+# DONNÉES ET EXPORTS
+# ══════════════════════════════════════
+
+# Exports CSV/Excel avec données réelles
+*.csv
+*.xlsx
+*.xls
+exports/
+data/raw/
+data/processed/
+
+# Sauvegardes base de données
+*.sql.bak
+*.dump
+*.backup
+
+
+# ══════════════════════════════════════
+# STREAMLIT
+# ══════════════════════════════════════
+
+# Cache Streamlit
+.streamlit/
+!.streamlit/config.toml
+
+# Logs Streamlit
+*.log
+
+
+# ══════════════════════════════════════
+# SYSTÈME ET IDE
+# ══════════════════════════════════════
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# VS Code
+.vscode/
+!.vscode/extensions.json
+
+# JetBrains
+.idea/
+*.iml
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+
+# ══════════════════════════════════════
+# DOCUMENTS CONFIDENTIELS
+# ══════════════════════════════════════
+
+# Rapports avec données sensibles (garder seulement les versions publiques)
+docs/rapports_internes/
+*.docx
+!docs/README_technique.md
+
+# Captures d'écran avec données
+screenshots/
+captures/
+
+
+# ══════════════════════════════════════
+# FICHIERS TEMPORAIRES
+# ══════════════════════════════════════
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
