@@ -8,17 +8,17 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import run_query, COLORS, PLOTLY_COLORS
 from utils.queries import (
-    Q_KPI_VENTES, Q_CA_PAR_PRODUIT,
-    Q_CA_PAR_MOIS, Q_TOP_CLIENTS,
-    Q_MOYEN_PAIEMENT, Q_CLIENTS_DETTES
+    Q_ACTIVITE_PAR_USER, Q_ACTIONS_PAR_TYPE,
+    Q_ACTIVITE_PAR_JOUR, Q_ALERTES_SECURITE,
+    Q_ACTIONS_SUSPECTES
 )
 
 # ══════════════════════════════════════
 # CONFIGURATION
 # ══════════════════════════════════════
 st.set_page_config(
-    page_title="Ventes — Mali Élevage",
-    page_icon="🛒",
+    page_title="Audit — Mali Élevage",
+    page_icon="🔍",
     layout="wide"
 )
 
@@ -41,13 +41,19 @@ derniere_maj = datetime.now().strftime("%d/%m/%Y à %Hh%M")
 # ══════════════════════════════════════
 # CHARGEMENT DONNÉES — AVANT SIDEBAR
 # ══════════════════════════════════════
-with st.spinner("Chargement des données ventes..."):
-    df_kpi      = run_query(Q_KPI_VENTES)
-    df_produit  = run_query(Q_CA_PAR_PRODUIT)
-    df_mois     = run_query(Q_CA_PAR_MOIS)
-    df_clients  = run_query(Q_TOP_CLIENTS)
-    df_paiement = run_query(Q_MOYEN_PAIEMENT)
-    df_dettes   = run_query(Q_CLIENTS_DETTES)
+with st.spinner("Chargement des données audit..."):
+    df_users    = run_query(Q_ACTIVITE_PAR_USER)
+    df_actions  = run_query(Q_ACTIONS_PAR_TYPE)
+    df_jours    = run_query(Q_ACTIVITE_PAR_JOUR)
+    df_alertes  = run_query(Q_ALERTES_SECURITE)
+    df_suspects = run_query(Q_ACTIONS_SUSPECTES)
+
+total_actions  = int(df_users["nb_actions"].sum())
+nb_users       = int(df_users.shape[0])
+nb_types       = int(df_actions["action"].nunique())
+nb_alertes_sec = len(df_alertes)
+nb_suspects    = len(df_suspects)
+nb_roles       = int(df_users["user_role"].nunique())
 
 # ══════════════════════════════════════
 # SIDEBAR — MÊME DESIGN QUE app.py
@@ -109,13 +115,16 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
     # ── NAVIGATION CLICABLE ──
-    st.page_link("app.py",                label="🏠 Tableau de bord", use_container_width=True)
-    st.page_link("pages/1_Ventes.py",     label="🛒 Ventes",          use_container_width=True)
-    st.page_link("pages/02_Productions.py", label="🥚 Production",    use_container_width=True)
-    st.page_link("pages/03_Finance.py",   label="💰 Finance",         use_container_width=True)
-    st.page_link("pages/04_Stocks.py",    label="📦 Stocks",          use_container_width=True)
-    st.page_link("pages/05_Audit.py",     label="🔍 Audit",           use_container_width=True)
-    st.page_link("pages/06_SaaS.py",      label="☁️ SaaS",            use_container_width=True)
+    st.page_link("app.py",                  label="🏠 Tableau de bord", use_container_width=True)
+    st.page_link("pages/1_Ventes.py",       label="🛒 Ventes",          use_container_width=True)
+    st.page_link("pages/02_Productions.py", label="🥚 Production",      use_container_width=True)
+    st.page_link("pages/03_Finance.py",     label="💰 Finance",         use_container_width=True)
+    st.page_link("pages/04_Stocks.py",      label="📦 Stocks",          use_container_width=True)
+    st.page_link("pages/05_Audit.py",
+        label=f"🔍 Audit {'🔴 ' + str(nb_alertes_sec) if nb_alertes_sec > 0 else ''}",
+        use_container_width=True
+    )
+    st.page_link("pages/06_SaaS.py",        label="☁️ SaaS",            use_container_width=True)
 
     # ── FOOTER SIDEBAR ──
     st.markdown(f"""
@@ -137,7 +146,7 @@ with st.sidebar:
 # EN-TÊTE
 # ══════════════════════════════════════
 st.markdown(f"""
-    <div style='background:#0D47A1;padding:20px 28px;
+    <div style='background:#4527A0;padding:20px 28px;
          border-radius:12px;margin-bottom:20px;
          display:flex;align-items:center;justify-content:space-between'>
         <div>
@@ -147,10 +156,10 @@ st.markdown(f"""
                 Mali-Élevage Siège
             </div>
             <div style='font-size:20px;font-weight:600;color:white;line-height:1.2'>
-                Analyse des Ventes
+                Audit & Traçabilité
             </div>
             <div style='color:rgba(255,255,255,0.5);margin-top:4px;font-size:12px'>
-                CA · Produits · Clients · Évolution temporelle · Recouvrement
+                Activité utilisateurs · Actions suspectes · Alertes sécurité
             </div>
         </div>
         <div style='display:flex;align-items:center;gap:6px;
@@ -167,252 +176,246 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════
-# KPIs VENTES
+# KPIs AUDIT
 # ══════════════════════════════════════
 st.markdown("""
     <div style='font-size:10px;font-weight:600;color:#666;
          letter-spacing:1px;text-transform:uppercase;margin-bottom:10px'>
-        Indicateurs clés ventes
+        Indicateurs clés audit
     </div>
 """, unsafe_allow_html=True)
 
-col1, col2, col3, col4, col5 = st.columns(5)
+col1, col2, col3, col4 = st.columns(4)
 
 with col1:
     st.metric(
-        "CA Total",
-        f"{float(df_kpi['ca_total'][0])/1_000_000:.1f}M XOF",
-        f"{df_kpi['nb_commandes'][0]} commandes"
+        "Total actions",
+        f"{total_actions:,}",
+        "depuis nov. 2025"
     )
 with col2:
     st.metric(
-        "Total Encaissé",
-        f"{float(df_kpi['total_encaisse'][0])/1_000_000:.1f}M XOF",
+        "Utilisateurs actifs",
+        f"{nb_users}",
+        f"{nb_roles} rôles distincts"
     )
 with col3:
     st.metric(
-        "Créances",
-        f"{float(df_kpi['total_creances'][0])/1000:.0f}K XOF",
-        delta_color="inverse"
+        "Types d'actions",
+        f"{nb_types}",
+        f"sur {len(df_actions['resource'].unique())} ressources"
     )
 with col4:
     st.metric(
-        "Taux Recouvrement",
-        f"{df_kpi['taux_recouvrement'][0]}%"
-    )
-with col5:
-    st.metric(
-        "Clients Actifs",
-        f"{df_kpi['nb_clients'][0]}"
+        "Alertes sécurité",
+        f"{nb_alertes_sec}",
+        delta_color="inverse" if nb_alertes_sec > 0 else "normal"
     )
 
+if nb_alertes_sec > 0:
+    date_premiere      = str(df_alertes['timestamp_action'].min())[:10]
+    nb_users_concernes = df_alertes['user_email'].nunique()
+    st.markdown(f"""
+        <div class='alert-danger'>
+            🚨 <strong>{nb_alertes_sec} SECURITY_ALERT détectées</strong>
+            depuis le {date_premiere} —
+            {nb_users_concernes} utilisateurs concernés.
+            Rythme d'environ 1 alerte par jour.
+            À investiguer immédiatement !
+        </div>
+    """, unsafe_allow_html=True)
+
 # ══════════════════════════════════════
-# CA PAR PRODUIT + MOYEN PAIEMENT
+# ACTIVITÉ PAR UTILISATEUR
 # ══════════════════════════════════════
-st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 st.markdown("""
     <div style='font-size:10px;font-weight:600;color:#666;
          letter-spacing:1px;text-transform:uppercase;margin-bottom:10px'>
-        Répartition du CA
+        Activité par utilisateur
     </div>
 """, unsafe_allow_html=True)
 
 col_left, col_right = st.columns(2)
 
 with col_left:
-    fig_pie = px.pie(
-        df_produit,
-        values="ca_total",
-        names="produit_normalise",
-        title="CA par Produit",
+    fig_users = px.bar(
+        df_users.sort_values("nb_actions", ascending=True),
+        x="nb_actions", y="user_email",
+        orientation="h",
+        title="Nombre d'actions par utilisateur",
+        color="nb_actions",
+        color_continuous_scale=[COLORS["light"], COLORS["purple"]],
+        text="nb_actions"
+    )
+    fig_users.update_layout(
+        height=380, paper_bgcolor="white", plot_bgcolor="white",
+        showlegend=False, coloraxis_showscale=False,
+        xaxis=dict(gridcolor="#EDE7F6"),
+        margin=dict(t=40, b=20, l=20, r=20)
+    )
+    fig_users.update_traces(textposition="outside")
+    st.plotly_chart(fig_users, use_container_width=True)
+
+with col_right:
+    fig_roles = px.pie(
+        df_users,
+        values="nb_actions", names="user_role",
+        title="Répartition actions par rôle",
         color_discrete_sequence=PLOTLY_COLORS,
         hole=0.4
     )
-    fig_pie.update_layout(
-        height=350,
-        paper_bgcolor="white",
+    fig_roles.update_layout(
+        height=380, paper_bgcolor="white",
         margin=dict(t=40, b=20, l=20, r=20)
     )
-    fig_pie.update_traces(
-        textposition="inside",
-        textinfo="percent+label"
-    )
-    st.plotly_chart(fig_pie, use_container_width=True)
+    st.plotly_chart(fig_roles, use_container_width=True)
 
-with col_right:
-    fig_pay = px.bar(
-        df_paiement,
-        x="moyen_paiement",
-        y="total",
-        title="CA par Moyen de Paiement",
-        color="moyen_paiement",
-        color_discrete_sequence=PLOTLY_COLORS,
-        text=df_paiement["total"].apply(
-            lambda x: f"{x/1_000_000:.1f}M"
-        )
-    )
-    fig_pay.update_layout(
-        height=350,
-        paper_bgcolor="white",
-        plot_bgcolor="white",
-        showlegend=False,
-        margin=dict(t=40, b=20, l=20, r=20),
-        yaxis=dict(gridcolor="#E8F5E9")
-    )
-    fig_pay.update_traces(textposition="outside")
-    st.plotly_chart(fig_pay, use_container_width=True)
+st.markdown("""
+    <div style='font-size:10px;font-weight:600;color:#666;
+         letter-spacing:1px;text-transform:uppercase;margin-bottom:8px'>
+        Détail par utilisateur
+    </div>
+""", unsafe_allow_html=True)
+df_users_display = df_users.copy()
+df_users_display.columns = ["Email", "Rôle", "Nb actions", "Jours actif"]
+st.dataframe(df_users_display, use_container_width=True, hide_index=True)
 
 # ══════════════════════════════════════
-# ÉVOLUTION CA PAR MOIS
+# ACTIONS PAR TYPE
 # ══════════════════════════════════════
 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 st.markdown("""
     <div style='font-size:10px;font-weight:600;color:#666;
          letter-spacing:1px;text-transform:uppercase;margin-bottom:10px'>
-        Évolution mensuelle du CA
+        Actions par type et ressource
     </div>
 """, unsafe_allow_html=True)
 
-df_mois["periode"] = (
-    df_mois["mois_nom"].str[:3] + " "
-    + df_mois["annee"].astype(str)
-)
+col_left2, col_right2 = st.columns(2)
 
-fig_line = go.Figure()
-fig_line.add_trace(go.Bar(
-    x=df_mois["periode"],
-    y=df_mois["ca_mensuel"],
-    name="CA Mensuel",
-    marker_color=COLORS["primary"],
-    text=df_mois["ca_mensuel"].apply(
-        lambda x: f"{x/1_000_000:.1f}M"
-    ),
-    textposition="outside"
-))
-fig_line.add_trace(go.Scatter(
-    x=df_mois["periode"],
-    y=df_mois["encaisse_mensuel"],
-    name="Encaissé",
-    mode="lines+markers",
-    line=dict(color=COLORS["secondary"], width=2),
-    marker=dict(size=6)
-))
-fig_line.add_trace(go.Bar(
-    x=df_mois["periode"],
-    y=df_mois["creances_mensuel"],
-    name="Créances",
-    marker_color=COLORS["danger"],
-    opacity=0.7
-))
-fig_line.update_layout(
-    height=400,
-    paper_bgcolor="white",
-    plot_bgcolor="white",
-    barmode="overlay",
-    legend=dict(
-        orientation="h",
-        yanchor="bottom", y=1.02,
-        xanchor="right", x=1
-    ),
-    yaxis=dict(gridcolor="#E8F5E9"),
-    margin=dict(t=40, b=60, l=20, r=20)
-)
-st.plotly_chart(fig_line, use_container_width=True)
-
-# ══════════════════════════════════════
-# TOP 10 CLIENTS
-# ══════════════════════════════════════
-st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-st.markdown("""
-    <div style='font-size:10px;font-weight:600;color:#666;
-         letter-spacing:1px;text-transform:uppercase;margin-bottom:10px'>
-        Top 10 clients
-    </div>
-""", unsafe_allow_html=True)
-
-col_table, col_chart = st.columns([3, 2])
-
-with col_table:
-    df_clients_display = df_clients.copy()
-    df_clients_display["ca_total"] = df_clients_display[
-        "ca_total"
-    ].apply(lambda x: f"{x:,.0f} XOF")
-    df_clients_display["dette_actuelle"] = df_clients_display[
-        "dette_actuelle"
-    ].apply(lambda x: f"{x:,.0f} XOF")
-    df_clients_display["taux_recouvrement"] = df_clients_display[
-        "taux_recouvrement"
-    ].apply(lambda x: f"{x}%")
-    df_clients_display.columns = [
-        "Client", "Commandes",
-        "CA Total", "Dette", "Taux Rec."
-    ]
-    st.dataframe(
-        df_clients_display,
-        use_container_width=True,
-        hide_index=True
+with col_left2:
+    df_actions["label"] = df_actions.apply(
+        lambda r: f"{r['action']} / {r['resource']}", axis=1
     )
-
-with col_chart:
-    fig_clients = px.bar(
-        df_clients.head(5),
-        x="ca_total",
-        y="client",
+    fig_actions = px.bar(
+        df_actions.head(10).sort_values("nb", ascending=True),
+        x="nb", y="label",
         orientation="h",
-        title="Top 5 Clients",
-        color="ca_total",
-        color_continuous_scale=[
-            COLORS["light"],
-            COLORS["primary"]
-        ]
+        title="Top 10 actions les plus fréquentes",
+        color="nb",
+        color_continuous_scale=[COLORS["light"], COLORS["purple"]],
+        text="nb"
     )
-    fig_clients.update_layout(
-        height=350,
-        paper_bgcolor="white",
-        plot_bgcolor="white",
-        showlegend=False,
+    fig_actions.update_layout(
+        height=380, paper_bgcolor="white", plot_bgcolor="white",
         coloraxis_showscale=False,
-        margin=dict(t=40, b=20, l=20, r=20),
-        xaxis=dict(gridcolor="#E8F5E9")
+        xaxis=dict(gridcolor="#EDE7F6"),
+        margin=dict(t=40, b=20, l=20, r=20)
     )
-    st.plotly_chart(fig_clients, use_container_width=True)
+    fig_actions.update_traces(textposition="outside")
+    st.plotly_chart(fig_actions, use_container_width=True)
+
+with col_right2:
+    jours_fr = {
+        "Monday   ": "Lundi",    "Tuesday  ": "Mardi",
+        "Wednesday": "Mercredi", "Thursday ": "Jeudi",
+        "Friday   ": "Vendredi", "Saturday ": "Samedi",
+        "Sunday   ": "Dimanche"
+    }
+    df_jours["jour_fr"] = df_jours["jour"].map(
+        lambda x: jours_fr.get(x, x.strip())
+    )
+    df_jours = df_jours.sort_values("num_jour")
+    fig_jours = px.bar(
+        df_jours,
+        x="jour_fr", y="nb_actions",
+        title="Activité par jour de la semaine",
+        color="nb_actions",
+        color_continuous_scale=[COLORS["light"], COLORS["purple"]],
+        text="nb_actions"
+    )
+    fig_jours.update_layout(
+        height=380, paper_bgcolor="white", plot_bgcolor="white",
+        coloraxis_showscale=False,
+        yaxis=dict(gridcolor="#EDE7F6"),
+        margin=dict(t=40, b=20, l=20, r=20)
+    )
+    fig_jours.update_traces(textposition="outside")
+    st.plotly_chart(fig_jours, use_container_width=True)
 
 # ══════════════════════════════════════
-# CLIENTS AVEC DETTES
+# ALERTES SÉCURITÉ
 # ══════════════════════════════════════
 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 st.markdown("""
     <div style='font-size:10px;font-weight:600;color:#666;
          letter-spacing:1px;text-transform:uppercase;margin-bottom:10px'>
-        Clients avec dettes ouvertes
+        Alertes de sécurité
     </div>
 """, unsafe_allow_html=True)
 
-if len(df_dettes) > 0:
-    for _, row in df_dettes.iterrows():
-        if pd.notna(row["derniere_commande"]):
-            jours = (
-                pd.Timestamp.now() -
-                pd.to_datetime(row["derniere_commande"])
-            ).days
-            jours_label = f"{jours} jours sans remboursement"
-            color = "danger" if jours > 30 else "warning"
-        else:
-            jours_label = "⚠️ Dette sans commande enregistrée — à vérifier"
-            color = "danger"
-
-        st.markdown(f"""
-            <div class='alert-{color}'>
-                <strong>{row['client']}</strong> —
-                Dette : <strong>{row['dette']:,.0f} XOF</strong> —
-                Dernière commande : {row['derniere_commande'] or 'N/A'} —
-                {jours_label}
-            </div>
-        """, unsafe_allow_html=True)
+if len(df_alertes) > 0:
+    date_min = str(df_alertes['timestamp_action'].min())[:10]
+    date_max = str(df_alertes['timestamp_action'].max())[:10]
+    st.markdown(f"""
+        <div class='alert-danger'>
+            🚨 <strong>{len(df_alertes)} SECURITY_ALERT</strong>
+            détectées entre le <strong>{date_min}</strong>
+            et le <strong>{date_max}</strong>
+        </div>
+    """, unsafe_allow_html=True)
+    st.markdown("")
+    df_alertes_display = df_alertes[[
+        "user_email", "action", "resource", "details", "timestamp_action"
+    ]].copy()
+    df_alertes_display["timestamp_action"] = (
+        df_alertes_display["timestamp_action"].astype(str).str[:19]
+    )
+    df_alertes_display.columns = [
+        "Utilisateur", "Action", "Ressource", "Détails", "Timestamp"
+    ]
+    st.dataframe(df_alertes_display, use_container_width=True, hide_index=True)
 else:
     st.markdown("""
         <div class='alert-success'>
-            ✅ Aucune dette en cours — tous les clients sont à jour
+            ✅ Aucune alerte de sécurité détectée
+        </div>
+    """, unsafe_allow_html=True)
+
+# ══════════════════════════════════════
+# ACTIONS SUSPECTES
+# ══════════════════════════════════════
+st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+st.markdown("""
+    <div style='font-size:10px;font-weight:600;color:#666;
+         letter-spacing:1px;text-transform:uppercase;margin-bottom:10px'>
+        Actions suspectes (DELETE / REJECT / ANNUL)
+    </div>
+""", unsafe_allow_html=True)
+
+if nb_suspects > 0:
+    st.markdown(f"""
+        <div class='alert-warning'>
+            ⚠️ <strong>{nb_suspects} actions suspectes</strong>
+            détectées — suppressions, rejets et annulations
+        </div>
+    """, unsafe_allow_html=True)
+    st.markdown("")
+    df_suspects_display = df_suspects[[
+        "user_email", "action", "resource", "details", "timestamp_action"
+    ]].copy()
+    df_suspects_display["timestamp_action"] = (
+        df_suspects_display["timestamp_action"].astype(str).str[:19]
+    )
+    df_suspects_display.columns = [
+        "Utilisateur", "Action", "Ressource", "Détails", "Timestamp"
+    ]
+    st.dataframe(df_suspects_display, use_container_width=True, hide_index=True)
+else:
+    st.markdown("""
+        <div class='alert-success'>
+            ✅ Aucune action suspecte détectée
         </div>
     """, unsafe_allow_html=True)
 

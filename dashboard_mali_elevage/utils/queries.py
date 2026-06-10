@@ -6,13 +6,19 @@
 Q_KPI_GLOBAL = """
 SELECT
     SUM(CASE WHEN type_transaction = 'Revenu'
+             AND statut_validation = 'Validé'
         THEN montant ELSE 0 END)                AS total_revenus,
     SUM(CASE WHEN type_transaction = 'Dépense'
+             AND statut_validation = 'Validé'
         THEN montant ELSE 0 END)                AS total_depenses,
     SUM(CASE WHEN type_transaction = 'Revenu'
+             AND statut_validation = 'Validé'
         THEN montant
         WHEN type_transaction = 'Dépense'
-        THEN -montant ELSE 0 END)               AS solde_operationnel
+             AND statut_validation = 'Validé'
+        THEN -montant ELSE 0 END)               AS solde_operationnel,
+    SUM(CASE WHEN type_transaction = 'Apport/Dette'
+        THEN montant ELSE 0 END)                AS total_apport_dette
 FROM analytique.fait_finance;
 """
 
@@ -167,16 +173,35 @@ ORDER BY cout_par_poussin ASC;
 # ── FINANCE ──────────────────────────
 Q_FINANCE_GLOBAL = """
 SELECT
-    SUM(CASE WHEN type_transaction='Revenu'
+    -- Revenus validés uniquement (= App Opera)
+    SUM(CASE WHEN type_transaction = 'Revenu'
+             AND statut_validation = 'Validé'
         THEN montant ELSE 0 END)            AS total_revenus,
-    SUM(CASE WHEN type_transaction='Dépense'
+
+    -- Revenus par statut pour analyse
+    SUM(CASE WHEN type_transaction = 'Revenu'
+             AND statut_validation = 'En attente'
+        THEN montant ELSE 0 END)            AS revenus_attente,
+    SUM(CASE WHEN type_transaction = 'Revenu'
+             AND statut_validation = 'Rejeté'
+        THEN montant ELSE 0 END)            AS revenus_rejetes,
+
+    -- Dépenses validées uniquement
+    SUM(CASE WHEN type_transaction = 'Dépense'
+             AND statut_validation = 'Validé'
         THEN montant ELSE 0 END)            AS total_depenses,
-    SUM(CASE WHEN type_transaction='Apport/Dette'
+
+    -- Apport/Dette
+    SUM(CASE WHEN type_transaction = 'Apport/Dette'
         THEN montant ELSE 0 END)            AS total_apport_dette,
-    SUM(CASE WHEN type_transaction='Revenu'
-        THEN montant
-        WHEN type_transaction='Dépense'
-        THEN -montant ELSE 0 END)           AS solde_operationnel
+
+    -- Solde réel = revenus validés - dépenses validées
+    SUM(CASE WHEN type_transaction = 'Revenu'
+                  AND statut_validation = 'Validé'
+             THEN montant
+             WHEN type_transaction = 'Dépense'
+                  AND statut_validation = 'Validé'
+             THEN -montant ELSE 0 END)      AS solde_operationnel
 FROM analytique.fait_finance;
 """
 
@@ -187,10 +212,12 @@ SELECT
     SUM(montant)                            AS total,
     ROUND((SUM(montant)/NULLIF(
         (SELECT SUM(montant) FROM analytique.fait_finance
-         WHERE type_transaction='Dépense'),0)*100)
+         WHERE type_transaction = 'Dépense'
+         AND statut_validation = 'Validé'),0)*100)
         ::numeric,2)                        AS pct
 FROM analytique.fait_finance
 WHERE type_transaction = 'Dépense'
+AND statut_validation = 'Validé'
 GROUP BY categorie_normalisee
 ORDER BY total DESC LIMIT 10;
 """
@@ -202,6 +229,7 @@ SELECT
     SUM(montant)                            AS total
 FROM analytique.fait_finance
 WHERE type_transaction = 'Revenu'
+AND statut_validation = 'Validé'
 GROUP BY categorie_normalisee
 ORDER BY total DESC;
 """
@@ -209,18 +237,43 @@ ORDER BY total DESC;
 Q_FINANCE_MENSUELLE = """
 SELECT
     dt.annee, dt.mois, dt.mois_nom,
-    SUM(CASE WHEN ff.type_transaction='Revenu'
+    SUM(CASE WHEN ff.type_transaction = 'Revenu'
+             AND ff.statut_validation = 'Validé'
         THEN ff.montant ELSE 0 END)         AS revenus,
-    SUM(CASE WHEN ff.type_transaction='Dépense'
+    SUM(CASE WHEN ff.type_transaction = 'Dépense'
+             AND ff.statut_validation = 'Validé'
         THEN ff.montant ELSE 0 END)         AS depenses,
-    SUM(CASE WHEN ff.type_transaction='Revenu'
-        THEN ff.montant ELSE -ff.montant
-        END)                                AS solde
+    SUM(CASE WHEN ff.type_transaction = 'Revenu'
+                  AND ff.statut_validation = 'Validé'
+             THEN ff.montant
+             WHEN ff.type_transaction = 'Dépense'
+                  AND ff.statut_validation = 'Validé'
+             THEN -ff.montant ELSE 0 END)   AS solde
 FROM analytique.fait_finance ff
 JOIN analytique.dim_temps dt ON dt.date_id = ff.date_id
 WHERE ff.type_transaction != 'Apport/Dette'
 GROUP BY dt.annee, dt.mois, dt.mois_nom
 ORDER BY dt.annee, dt.mois;
+"""
+
+# ── FINANCE — TRANSACTIONS SUPPRIMÉES ──
+Q_TRANSACTIONS_SUPPRIMEES = """
+SELECT
+    ff.finance_id,
+    ff.type_transaction,
+    ff.statut_validation,
+    ff.montant,
+    ff.date_transaction,
+    ff.description,
+    ff.categorie_normalisee,
+    ff.user_name
+FROM analytique.fait_finance ff
+WHERE ff.finance_id NOT IN (
+    SELECT id
+    FROM public.finance
+    WHERE tenant_id = 1
+)
+ORDER BY ff.date_transaction DESC;
 """
 
 # ── STOCKS ───────────────────────────
@@ -236,6 +289,14 @@ SELECT
     (CURRENT_DATE - date_entree_stock)      AS jours_en_stock
 FROM analytique.fait_stock
 ORDER BY date_entree_stock DESC;
+"""
+
+Q_KPI_STOCK = """
+SELECT
+    SUM(poussins_vendus)                    AS total_vendus,
+    SUM(quantite_restante)                  AS total_restants,
+    ROUND(AVG(taux_ecoulement)::numeric,2)  AS taux_ecoulement_moyen
+FROM analytique.fait_stock;
 """
 
 Q_STOCKS_ALERTES = """
@@ -256,7 +317,7 @@ SELECT
         ELSE 'Normal'
     END                                     AS alerte
 FROM analytique.fait_stock
-WHERE statut_stock != 'Terminé'
+WHERE COALESCE(statut_stock, 'Actif') != 'Terminé'
 ORDER BY taux_ecoulement ASC;
 """
 
