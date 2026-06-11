@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
@@ -27,7 +28,11 @@ st.set_page_config(
 # CSS PERSONNALISÉ
 # ══════════════════════════════════════
 def load_css():
-    with open("assets/style.css", encoding="utf-8") as f:
+    css_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "assets", "style.css"
+    )
+    with open(css_path, encoding="utf-8") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 load_css()
