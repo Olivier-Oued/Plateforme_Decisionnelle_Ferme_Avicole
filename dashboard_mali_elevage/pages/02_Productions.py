@@ -357,13 +357,12 @@ with col_table:
         "Oeufs éclos", "Taux éclosion %",
         "Taux perte %", "Machine"
     ]
-    st.dataframe(df_display, use_container_width=True, hide_index=True)
     st.dataframe(
-    df_display,
-    use_container_width=True,
-    hide_index=True,
-    height=400
-)
+        df_display,
+        use_container_width=True,
+        hide_index=True,
+        height=400
+    )
 
 with col_chart:
     fig_top = px.bar(
