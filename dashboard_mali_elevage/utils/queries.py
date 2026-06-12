@@ -19,7 +19,8 @@ SELECT
         THEN -montant ELSE 0 END)               AS solde_operationnel,
     SUM(CASE WHEN type_transaction = 'Apport/Dette'
         THEN montant ELSE 0 END)                AS total_apport_dette
-FROM analytique.fait_finance;
+FROM analytique.fait_finance
+WHERE supprime_oltp = FALSE;
 """
 
 Q_KPI_VENTES = """
@@ -202,7 +203,8 @@ SELECT
              WHEN type_transaction = 'Dépense'
                   AND statut_validation = 'Validé'
              THEN -montant ELSE 0 END)      AS solde_operationnel
-FROM analytique.fait_finance;
+FROM analytique.fait_finance
+WHERE supprime_oltp = FALSE;
 """
 
 Q_DEPENSES_CATEGORIE = """
@@ -213,11 +215,13 @@ SELECT
     ROUND((SUM(montant)/NULLIF(
         (SELECT SUM(montant) FROM analytique.fait_finance
          WHERE type_transaction = 'Dépense'
-         AND statut_validation = 'Validé'),0)*100)
+         AND statut_validation = 'Validé'
+         AND supprime_oltp = FALSE),0)*100)
         ::numeric,2)                        AS pct
 FROM analytique.fait_finance
 WHERE type_transaction = 'Dépense'
 AND statut_validation = 'Validé'
+AND supprime_oltp = FALSE
 GROUP BY categorie_normalisee
 ORDER BY total DESC LIMIT 10;
 """
@@ -230,6 +234,7 @@ SELECT
 FROM analytique.fait_finance
 WHERE type_transaction = 'Revenu'
 AND statut_validation = 'Validé'
+AND supprime_oltp = FALSE
 GROUP BY categorie_normalisee
 ORDER BY total DESC;
 """
@@ -252,11 +257,12 @@ SELECT
 FROM analytique.fait_finance ff
 JOIN analytique.dim_temps dt ON dt.date_id = ff.date_id
 WHERE ff.type_transaction != 'Apport/Dette'
+AND ff.supprime_oltp = FALSE
 GROUP BY dt.annee, dt.mois, dt.mois_nom
 ORDER BY dt.annee, dt.mois;
 """
 
-# ── FINANCE — TRANSACTIONS SUPPRIMÉES ──
+# ── FINANCE — TRANSACTIONS SUPPRIMÉES (historique audit) ──
 Q_TRANSACTIONS_SUPPRIMEES = """
 SELECT
     ff.finance_id,
@@ -268,11 +274,7 @@ SELECT
     ff.categorie_normalisee,
     ff.user_name
 FROM analytique.fait_finance ff
-WHERE ff.finance_id NOT IN (
-    SELECT id
-    FROM public.finance
-    WHERE tenant_id = 1
-)
+WHERE ff.supprime_oltp = TRUE
 ORDER BY ff.date_transaction DESC;
 """
 

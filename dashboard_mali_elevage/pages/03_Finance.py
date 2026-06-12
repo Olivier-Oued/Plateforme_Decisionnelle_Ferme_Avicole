@@ -57,7 +57,6 @@ apport          = float(df_global['total_apport_dette'][0])
 marge           = solde / revenus * 100
 pct             = depenses / revenus * 100
 montant_supprime = float(df_supprimees["montant"].sum()) if len(df_supprimees) > 0 else 0
-solde_reel       = solde - montant_supprime
 nb_revenus       = int(df_revenus["nb"].sum()) if "nb" in df_revenus.columns else 366
 nb_depenses      = int(df_depenses["nb"].sum()) if "nb" in df_depenses.columns else 732
 
@@ -273,38 +272,24 @@ with col_r:
     """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════
-# TRANSACTIONS SUPPRIMÉES
+# HISTORIQUE D'AUDIT — TRANSACTIONS SUPPRIMÉES DE L'OLTP
 # ══════════════════════════════════════
 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 st.markdown("""
     <div style='font-size:10px;font-weight:600;color:#666;
          letter-spacing:1px;text-transform:uppercase;margin-bottom:10px'>
-        Détection des anomalies — transactions supprimées
+        Historique d'audit — transactions supprimées de l'application
     </div>
 """, unsafe_allow_html=True)
 
 if len(df_supprimees) > 0:
-    col_s1, col_s2 = st.columns(2)
-    with col_s1:
-        st.metric(
-            "Transactions supprimées",
-            f"{len(df_supprimees)}",
-            f"{montant_supprime:,.0f} XOF fantômes",
-            delta_color="inverse"
-        )
-    with col_s2:
-        st.metric(
-            "Solde réel corrigé",
-            f"+{solde_reel/1_000_000:.2f}M XOF",
-            f"vs {solde/1_000_000:.2f}M XOF affiché"
-        )
     st.markdown(f"""
-        <div class='alert-danger'>
-            👻 <strong>{len(df_supprimees)} transaction(s) supprimée(s) détectée(s)</strong> —
-            <strong>{montant_supprime:,.0f} XOF</strong>
-            présent(es) dans l'analytique mais effacé(es) de l'application.<br>
-            <small>⚠️ Solde réel = <strong>{solde_reel:,.0f} XOF</strong>
-            vs Solde affiché = <strong>{solde:,.0f} XOF</strong></small>
+        <div class='alert-warning'>
+            👻 <strong>{len(df_supprimees)} transaction(s) historiquement supprimée(s)</strong> —
+            <strong>{montant_supprime:,.0f} XOF</strong> au total.<br>
+            <small>ℹ️ Ces transactions ont été retirées de l'application (OLTP) mais sont
+            conservées ici à titre d'archive — elles sont automatiquement exclues
+            du Solde Opérationnel et de tous les KPIs ci-dessus.</small>
         </div>
     """, unsafe_allow_html=True)
     df_supp_display = df_supprimees[[

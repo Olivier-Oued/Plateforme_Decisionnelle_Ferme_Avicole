@@ -223,18 +223,19 @@ def etl_fait_ventes():
 
 # ══════════════════════════════════════
 # TASK 5 — ETL FAIT FINANCE
+# Ajout synchronisation suppressions OLTP
 # ══════════════════════════════════════
 def etl_fait_finance():
     logger.info("💰 Rechargement fait_finance...")
     engine = get_engine()
 
-    sql = """
+    sql_insert = """
     INSERT INTO analytique.fait_finance (
         finance_id, date_id, ferme_id,
         type_transaction, categorie_normalisee,
         montant, description, user_name, source,
         statut_validation,
-        date_transaction
+        date_transaction, supprime_oltp
     )
     SELECT
         f.id,
@@ -257,17 +258,35 @@ def etl_fait_finance():
         f.user_name,
         'Manuel',
         f.statut_validation,
-        DATE(f.date_transaction)
+        DATE(f.date_transaction),
+        FALSE
     FROM public.finance f
     WHERE f.tenant_id = 1
     ON CONFLICT (finance_id) DO UPDATE SET
         montant              = EXCLUDED.montant,
         categorie_normalisee = EXCLUDED.categorie_normalisee,
-        statut_validation    = EXCLUDED.statut_validation;
+        statut_validation    = EXCLUDED.statut_validation,
+        supprime_oltp        = FALSE;
+    """
+
+    # Synchronisation des suppressions : marque les transactions
+    # présentes dans l'analytique mais absentes de l'OLTP
+    sql_sync_suppressions = """
+    UPDATE analytique.fait_finance af
+    SET supprime_oltp = TRUE
+    WHERE af.finance_id NOT IN (
+        SELECT id FROM public.finance WHERE tenant_id = 1
+    )
+    AND af.supprime_oltp = FALSE;
     """
 
     with engine.begin() as conn:
-        conn.execute(text(sql))
+        conn.execute(text(sql_insert))
+        result = conn.execute(text(sql_sync_suppressions))
+        nb_supprimees = result.rowcount
+
+    if nb_supprimees > 0:
+        logger.info(f"👻 {nb_supprimees} transaction(s) marquée(s) comme supprimée(s) de l'OLTP")
 
     nb = pd.read_sql(
         text("SELECT COUNT(*) as nb FROM analytique.fait_finance"),
